@@ -43,6 +43,7 @@ from vllm.model_executor.layers.sampler import SamplerOutput
 from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
 from vllm.outputs import (PoolingRequestOutput, RequestOutput,
                           RequestOutputFactory)
+from vllm.platforms import current_platform
 from vllm.pooling_params import PoolingParams
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import RequestOutputKind, SamplingParams
@@ -461,61 +462,11 @@ class LLMEngine:
             if distributed_executor_backend.uses_ray:  # type: ignore
                 initialize_ray_cluster(engine_config.parallel_config)
             executor_class = distributed_executor_backend
-        elif engine_config.device_config.device_type == "neuron":
-            from vllm.executor.neuron_executor import NeuronExecutor
-            executor_class = NeuronExecutor
-        elif engine_config.device_config.device_type == "tpu":
-            if distributed_executor_backend == "ray":
-                initialize_ray_cluster(engine_config.parallel_config)
-                from vllm.executor.ray_tpu_executor import RayTPUExecutor
-                executor_class = RayTPUExecutor
-            else:
-                assert distributed_executor_backend is None
-                from vllm.executor.tpu_executor import TPUExecutor
-                executor_class = TPUExecutor
-        elif engine_config.device_config.device_type == "cpu":
-            from vllm.executor.cpu_executor import CPUExecutor
-            executor_class = CPUExecutor
-        elif engine_config.device_config.device_type == "hpu":
-            if distributed_executor_backend == "ray":
-                initialize_ray_cluster(engine_config.parallel_config)
-                from vllm.executor.ray_hpu_executor import RayHPUExecutor
-                executor_class = RayHPUExecutor
-            else:
-                from vllm.executor.hpu_executor import HPUExecutor
-                executor_class = HPUExecutor
-        elif engine_config.device_config.device_type == "openvino":
-            from vllm.executor.openvino_executor import OpenVINOExecutor
-            executor_class = OpenVINOExecutor
-        elif engine_config.device_config.device_type == "xpu":
-            if distributed_executor_backend == "ray":
-                initialize_ray_cluster(engine_config.parallel_config)
-                from vllm.executor.ray_xpu_executor import RayXPUExecutor
-                executor_class = RayXPUExecutor
-            elif distributed_executor_backend == "mp":
-                # FIXME(kunshang):
-                # spawn needs calling `if __name__ == '__main__':``
-                # fork is not supported for xpu start new process.
-                logger.error(
-                    "Both start methods (spawn and fork) have issue "
-                    "on XPU if you use mp backend, Please try ray instead.")
-            else:
-                from vllm.executor.xpu_executor import XPUExecutor
-                executor_class = XPUExecutor
-        elif distributed_executor_backend == "ray":
-            initialize_ray_cluster(engine_config.parallel_config)
-            from vllm.executor.ray_gpu_executor import RayGPUExecutor
-            executor_class = RayGPUExecutor
-        elif distributed_executor_backend == "mp":
-            from vllm.executor.multiproc_gpu_executor import (
-                MultiprocessingGPUExecutor)
-            assert not envs.VLLM_USE_RAY_SPMD_WORKER, (
-                "multiprocessing distributed executor backend does not "
-                "support VLLM_USE_RAY_SPMD_WORKER=1")
-            executor_class = MultiprocessingGPUExecutor
         else:
-            from vllm.executor.gpu_executor import GPUExecutor
-            executor_class = GPUExecutor
+            executor_class = current_platform.get_executor_class(
+                distributed_executor_backend)
+            if distributed_executor_backend == "ray":
+                initialize_ray_cluster(engine_config.parallel_config)
         return executor_class
 
     @classmethod

@@ -2,6 +2,9 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 
+from vllm.executor.multiproc_xpu_executor import MultiprocessingXPUExecutorAsync
+from vllm.executor.ray_xpu_executor import RayXPUExecutorAsync, RayXPUExecutor
+from vllm.executor.xpu_executor import XPUExecutorAsync, XPUExecutor
 from vllm.logger import init_logger
 
 from .interface import DeviceCapability, Platform, PlatformEnum, _Backend
@@ -78,3 +81,23 @@ class XPUPlatform(Platform):
             parallel_config.distributed_executor_backend = "ray"
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm.worker.xpu_worker.XPUWorker"
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        if distributed_executor_backend == "ray":
+            if is_async:
+                return RayXPUExecutorAsync
+            return RayXPUExecutor
+        if distributed_executor_backend == "mp":
+            if is_async:
+                return MultiprocessingXPUExecutorAsync
+            # FIXME(kunshang):
+            # spawn needs calling `if __name__ == '__main__':``
+            # fork is not supported for xpu start new process.
+            logger.error(
+                "Both start methods (spawn and fork) have issue "
+                "on XPU if you use mp backend, Please try ray instead.")
+        if is_async:
+            return XPUExecutorAsync
+        return XPUExecutor

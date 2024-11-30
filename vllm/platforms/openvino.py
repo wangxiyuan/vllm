@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, Optional
 import torch
 
 import vllm.envs as envs
+from vllm.executor.openvino_executor import (OpenVINOExecutorAsync,
+                                             OpenVINOExecutor)
 from vllm.logger import init_logger
 
 from .interface import Platform, PlatformEnum, _Backend
@@ -135,3 +137,13 @@ class OpenVinoPlatform(Platform):
             raise RuntimeError(
                 "Invalid environment variable VLLM_OPENVINO_KVCACHE_SPACE"
                 f" {kv_cache_space}, expect a positive integer value.")
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        assert distributed_executor_backend is None, (
+                "Distributed execution is not supported with "
+                "the OpenVINO backend.")
+        if is_async:
+            return OpenVINOExecutorAsync
+        return OpenVINOExecutor

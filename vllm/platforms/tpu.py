@@ -2,6 +2,8 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 
+from vllm.executor.ray_tpu_executor import RayTPUExecutor, RayTPUExecutorAsync
+from vllm.executor.tpu_executor import TPUExecutor, TPUExecutorAsync
 from vllm.logger import init_logger
 
 from .interface import Platform, PlatformEnum, _Backend
@@ -67,3 +69,14 @@ class TpuPlatform(Platform):
                     "vllm.worker.multi_step_tpu_worker.MultiStepTPUWorker"
             else:
                 parallel_config.worker_cls = "vllm.worker.tpu_worker.TPUWorker"
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        if distributed_executor_backend == "ray":
+            if is_async:
+                return RayTPUExecutorAsync
+            return RayTPUExecutor
+        if is_async:
+            return TPUExecutorAsync
+        return TPUExecutor

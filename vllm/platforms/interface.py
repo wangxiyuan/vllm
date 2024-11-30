@@ -1,7 +1,7 @@
 import enum
 import platform
 import random
-from typing import TYPE_CHECKING, NamedTuple, Optional, Tuple, Union
+from typing import TYPE_CHECKING, NamedTuple, Optional, Tuple, Union, Type
 
 import numpy as np
 import torch
@@ -10,8 +10,10 @@ from vllm.logger import init_logger
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
+    from vllm.executor.executor_base import ExecutorBase
 else:
     VllmConfig = None
+    ExecutorBase = None
 
 logger = init_logger(__name__)
 
@@ -220,6 +222,14 @@ class Platform:
             return CpuArchEnum.POWERPC
 
         return CpuArchEnum.OTHER if machine else CpuArchEnum.UNKNOWN
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None) -> Type[ExecutorBase]:
+        """
+        Get the executor class for the current platform.
+        """
+        raise NotImplementedError
 
 
 class UnspecifiedPlatform(Platform):

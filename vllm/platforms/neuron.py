@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 
+from vllm.executor.neuron_executor import NeuronExecutor, NeuronExecutorAsync
+
 from .interface import Platform, PlatformEnum
 
 if TYPE_CHECKING:
@@ -28,3 +30,9 @@ class NeuronPlatform(Platform):
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = \
                 "vllm.worker.neuron_worker.NeuronWorker"
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        if is_async:
+            return NeuronExecutorAsync
+        return NeuronExecutor

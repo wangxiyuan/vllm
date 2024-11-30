@@ -5,6 +5,10 @@ from typing import TYPE_CHECKING, Optional
 import torch
 
 import vllm.envs as envs
+from vllm.executor.gpu_executor import GPUExecutor, GPUExecutorAsync
+from vllm.executor.multiproc_gpu_executor import (
+     MultiprocessingGPUExecutor, MultiprocessingGPUExecutorAsync)
+from vllm.executor.ray_gpu_executor import RayGPUExecutor, RayGPUExecutorAsync
 from vllm.logger import init_logger
 
 from .interface import DeviceCapability, Platform, PlatformEnum, _Backend
@@ -106,3 +110,24 @@ class RocmPlatform(Platform):
                 "Using AWQ quantization with ROCm, but VLLM_USE_TRITON_AWQ"
                 " is not set, enabling VLLM_USE_TRITON_AWQ.")
         envs.VLLM_USE_TRITON_AWQ = True
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        if distributed_executor_backend == "ray":
+            if is_async:
+                return RayGPUExecutorAsync
+            else:
+                return RayGPUExecutor
+        if distributed_executor_backend == "mp":
+            if is_async:
+                return MultiprocessingGPUExecutorAsync
+            else:
+                assert not envs.VLLM_USE_RAY_SPMD_WORKER, (
+                    "multiprocessing distributed executor backend does not "
+                    "support VLLM_USE_RAY_SPMD_WORKER=1")
+                return MultiprocessingGPUExecutor
+        if is_async:
+            return GPUExecutorAsync
+        else:
+            return GPUExecutor

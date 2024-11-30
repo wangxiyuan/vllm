@@ -2,6 +2,9 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 
+from vllm.executor.hpu_executor import HPUExecutor, HPUExecutorAsync
+from vllm.executor.ray_hpu_executor import RayHPUExecutor, RayHPUExecutorAsync
+
 from .interface import Platform, PlatformEnum, _Backend
 
 if TYPE_CHECKING:
@@ -43,3 +46,14 @@ class HpuPlatform(Platform):
         parallel_config = vllm_config.parallel_config
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm.worker.hpu_worker.HPUWorker"
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        if distributed_executor_backend == "ray":
+            if is_async:
+                return RayHPUExecutorAsync
+            return RayHPUExecutor
+        if is_async:
+            return HPUExecutorAsync
+        return HPUExecutor

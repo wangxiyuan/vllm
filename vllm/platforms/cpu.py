@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional
 import psutil
 import torch
 
+from vllm.executor.cpu_executor import CPUExecutor, CPUExecutorAsync
 from vllm.logger import init_logger
 
 from .interface import Platform, PlatformEnum, _Backend
@@ -98,3 +99,10 @@ class CpuPlatform(Platform):
                     "vllm.worker.cpu_worker.CPUWorker"
             else:
                 parallel_config.worker_cls = "vllm.worker.cpu_worker.CPUWorker"
+
+    @classmethod
+    def get_executor_class(cls, distributed_executor_backend: str | None = None,
+                           is_async: bool | None = None):
+        if is_async:
+            return CPUExecutorAsync
+        return CPUExecutor
