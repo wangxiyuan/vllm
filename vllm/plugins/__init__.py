@@ -59,6 +59,11 @@ def load_general_plugins():
     # all processes created by vllm will load plugins,
     # and here we can inject some common environment variables
     # for all processes.
+    import multiprocessing
+    logger.info("====================current processs===========: %s",
+                multiprocessing.current_process().name)
+    logger.info("====================current platform===========: %s",
+                current_platform.dispatch_key)
 
     # see https://github.com/vllm-project/vllm/issues/10480
     os.environ['TORCHINDUCTOR_COMPILE_THREADS'] = '1'

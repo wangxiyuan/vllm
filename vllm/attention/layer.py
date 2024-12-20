@@ -9,11 +9,14 @@ from vllm.attention import AttentionMetadata, AttentionType
 from vllm.attention.selector import backend_name_to_enum, get_attn_backend
 from vllm.config import CacheConfig, get_current_vllm_config
 from vllm.forward_context import ForwardContext, get_forward_context
+from vllm.logger import init_logger
 from vllm.model_executor.layers.quantization.base_config import (
     QuantizationConfig)
 from vllm.model_executor.layers.quantization.kv_cache import BaseKVCacheMethod
 from vllm.platforms import _Backend, current_platform
 from vllm.utils import direct_register_custom_op
+
+logger = init_logger(__name__)
 
 
 class Attention(nn.Module):
@@ -306,6 +309,11 @@ def unified_attention_with_output_fake(
 ) -> None:
     return
 
+import multiprocessing
+logger.info("====================current processs===========: %s",
+            multiprocessing.current_process().name)
+logger.info("====================current platform===========: %s",
+            current_platform.dispatch_key)
 
 direct_register_custom_op(
     op_name="unified_attention_with_output",
