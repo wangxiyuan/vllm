@@ -297,7 +297,7 @@ class Qwen3NextGatedDeltaNet(nn.Module, MambaBase):
             group_size=None,
             norm_before_gate=True,
             device=current_platform.current_device(),
-            dtype=config.torch_dtype,
+            dtype=config.dtype,
         )
 
         self.out_proj = RowParallelLinear(self.value_dim,
@@ -794,14 +794,14 @@ class Qwen3NextDecoderLayer(nn.Module):
                     1,
                     1,
                     config.hidden_size,
-                    dtype=config.torch_dtype,
+                    dtype=config.dtype,
                 ), )
             self.ffn_layer_scale = torch.nn.Parameter(
                 torch.zeros(
                     1,
                     1,
                     config.hidden_size,
-                    dtype=config.torch_dtype,
+                    dtype=config.dtype,
                 ), )
 
     def forward(

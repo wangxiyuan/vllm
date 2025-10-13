@@ -900,7 +900,7 @@ class NemotronH_Nano_VL_V2(nn.Module, HasInnerState, IsHybrid,
             prefix=maybe_prefix(prefix, "language_model"),
         )
         self.vision_model = self.get_vit_model_from_radio_config(config).to(
-            self.language_model.config.torch_dtype)
+            self.language_model.config.dtype)
 
         # Construct the vision projection.
         vit_hidden_size = config.vit_hidden_size
@@ -921,7 +921,7 @@ class NemotronH_Nano_VL_V2(nn.Module, HasInnerState, IsHybrid,
                       llm_hidden_size,
                       bias=False),
         )
-        self.mlp1 = self.mlp1.to(self.language_model.config.torch_dtype)
+        self.mlp1 = self.mlp1.to(self.language_model.config.dtype)
 
         self.img_context_token_id = None
         self.video_context_token_id = None

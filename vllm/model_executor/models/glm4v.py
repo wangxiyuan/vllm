@@ -591,7 +591,7 @@ class GLM4VForCausalLM(ChatGLMBaseModel, SupportsLoRA, SupportsPP,
 
     def _process_image_input(
             self, image_input: GLMVImagePixelInputs) -> torch.Tensor:
-        pixel_values = image_input["data"].to(dtype=self.config.torch_dtype)
+        pixel_values = image_input["data"].to(dtype=self.config.dtype)
 
         return self.transformer.vision(pixel_values)
 
