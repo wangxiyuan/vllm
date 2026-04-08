@@ -51,7 +51,12 @@ from vllm.v1.core.sched.request_queue import (
     create_request_queue,
 )
 from vllm.v1.core.sched.utils import check_stop, remove_all
-from vllm.v1.engine import EngineCoreEventType, EngineCoreOutput, EngineCoreOutputs
+from vllm.v1.engine import (
+    EngineCoreEventType,
+    EngineCoreOutput,
+    EngineCoreOutputs,
+    FinishReason,
+)
 from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig
 from vllm.v1.metrics.perf import ModelMetrics, PerfStats
 from vllm.v1.metrics.stats import PrefixCacheStats, SchedulerStats
@@ -120,6 +125,9 @@ class Scheduler(SchedulerInterface):
         self.connector = None
         self.connector_prefix_cache_stats: PrefixCacheStats | None = None
         self.recompute_kv_load_failures = True
+        self.enable_pd_recompute = False
+        self.is_pd_decode_node = False
+
         if self.vllm_config.kv_transfer_config is not None:
             assert not self.is_encoder_decoder, (
                 "Encoder-decoder models are not currently supported with KV connectors"
@@ -131,10 +139,33 @@ class Scheduler(SchedulerInterface):
             )
             if self.log_stats:
                 self.connector_prefix_cache_stats = PrefixCacheStats()
-            kv_load_failure_policy = (
-                self.vllm_config.kv_transfer_config.kv_load_failure_policy
-            )
+
+            kv_config = self.vllm_config.kv_transfer_config
+            kv_load_failure_policy = kv_config.kv_load_failure_policy
             self.recompute_kv_load_failures = kv_load_failure_policy == "recompute"
+
+            # PD recompute mode: proactively send requests back to prefill node
+            # when decode node runs out of KV cache capacity
+            self.enable_pd_recompute = kv_load_failure_policy == "recompute_pd"
+
+            # Check if this is a decode node in PD separation
+            self.is_pd_decode_node = (
+                kv_config.is_kv_consumer
+                and kv_config.kv_rank is not None
+                and kv_config.kv_rank > 0
+            )
+
+            # Get max recomputation attempts from extra config
+            self.max_recompute_attempts = kv_config.get_from_extra_config(
+                "max_recompute_attempts", 3
+            )
+            # Validate max_recompute_attempts
+            if self.max_recompute_attempts <= 0:
+                logger.warning(
+                    "Invalid max_recompute_attempts (%d), using default value 3",
+                    self.max_recompute_attempts,
+                )
+                self.max_recompute_attempts = 3
 
         self.kv_event_publisher = EventPublisherFactory.create(
             self.kv_events_config,
@@ -361,6 +392,9 @@ class Scheduler(SchedulerInterface):
         scheduled_resumed_reqs: list[Request] = []
         scheduled_running_reqs: list[Request] = []
         preempted_reqs: list[Request] = []
+        recomputed_req_ids: set[str] = (
+            set()
+        )  # PD recompute: requests to be recomputed on prefill node
 
         req_to_new_blocks: dict[str, KVCacheBlocks] = {}
         num_scheduled_tokens: dict[str, int] = {}
@@ -459,6 +493,7 @@ class Scheduler(SchedulerInterface):
 
             # Schedule newly needed KV blocks for the request.
             with record_function_or_nullcontext("schedule: allocate_slots"):
+                is_recomputed = False
                 while True:
                     new_blocks = self.kv_cache_manager.allocate_slots(
                         request,
@@ -470,8 +505,43 @@ class Scheduler(SchedulerInterface):
                         # The request can be scheduled.
                         break
 
-                    # The request cannot be scheduled.
-                    # Preempt the lowest-priority request.
+                    # The request cannot be scheduled due to KV cache shortage.
+                    # Check if we should use PD recomputation (for PD disaggregation).
+                    if (
+                        self.enable_pd_recompute
+                        and self.is_pd_decode_node
+                        and request.recompute_count < self.max_recompute_attempts
+                    ):
+                        # PD separation scenario: decode node KV cache insufficient
+                        # Send request back to prefill node for recomputation
+                        logger.info(
+                            "KV cache shortage on decode node, marking request %s "
+                            "for PD recomputation (attempt %d/%d)",
+                            request.request_id,
+                            request.recompute_count
+                            + 1,  # Show the count after increment
+                            self.max_recompute_attempts,
+                        )
+
+                        # Mark for PD recomputation
+                        recomputed_req_ids.add(request.request_id)
+
+                        # Increment recompute counter now (not in update_from_output)
+                        request.recompute_count += 1
+
+                        # Free the request's KV cache blocks
+                        self.kv_cache_manager.free(request)
+
+                        # Remove from running queue
+                        # Note: request has not been added to scheduled_running_reqs yet
+                        # because allocate_slots() returned None
+                        self.running.remove(request)
+                        is_recomputed = True
+
+                        # Break out of the while True loop
+                        break
+
+                    # Traditional preemption logic (existing code)
                     if self.policy == SchedulingPolicy.PRIORITY:
                         preempted_req = max(
                             self.running,
@@ -503,11 +573,23 @@ class Scheduler(SchedulerInterface):
                     preempted_reqs.append(preempted_req)
                     if preempted_req == request:
                         # No more request to preempt. Cannot schedule this request.
+                        # The request has been removed from running queue and added to
+                        # preempted_reqs. It will be put back to waiting queue later.
+                        # Don't increment req_index since the list has shifted.
                         break
 
+            # Skip this request if it was marked for PD recomputation
+            if is_recomputed:
+                # Don't increment req_index since we removed the current request
+                # The next request will shift to this index
+                continue
+
             if new_blocks is None:
-                # Cannot schedule this request.
-                break
+                # Cannot schedule this request after preemption.
+                # This happens when preemption failed (no more requests to preempt).
+                # The request has already been added to preempted_reqs and will be
+                # put back to waiting queue.
+                continue
 
             # Schedule the request.
             scheduled_running_reqs.append(request)
@@ -927,6 +1009,7 @@ class Scheduler(SchedulerInterface):
             finished_req_ids=self.finished_req_ids,
             free_encoder_mm_hashes=self.encoder_cache_manager.get_freed_mm_hashes(),
             new_block_ids_to_zero=new_block_ids_to_zero,
+            recomputed_req_ids=recomputed_req_ids,  # PD recompute requests
         )
 
         # NOTE(Kuntai): this function is designed for multiple purposes:
@@ -1337,6 +1420,49 @@ class Scheduler(SchedulerInterface):
                 num_scheduled_tokens,
             )
 
+        # PD Recompute: Return recomputed requests as EngineCoreOutput
+        # These requests are sent back to prefill node for recomputation
+        # Note: recompute_count was already incremented in schedule()
+        if scheduler_output.recomputed_req_ids:
+            for req_id in scheduler_output.recomputed_req_ids:
+                request = self.requests.get(req_id)
+                if request is not None and not request.is_finished():
+                    # Generate EngineCoreOutput with RECOMPUTE_PD finish reason
+                    outputs[request.client_index].append(
+                        EngineCoreOutput(
+                            request_id=req_id,
+                            finish_reason=FinishReason.RECOMPUTE_PD,
+                            stop_reason="recompute_pd",
+                            new_token_ids=[],
+                            num_cached_tokens=request.num_cached_tokens,
+                            events=request.take_events(),
+                            trace_headers=request.trace_headers,
+                        )
+                    )
+
+                    # Mark request as finished (will be resubmitted to prefill)
+                    request.status = RequestStatus.FINISHED_STOPPED
+
+                    # Remove from requests dict so it can be resubmitted
+                    # Note: take_events() clears request.events and returns the list
+                    # The events will be included in the EngineCoreOutput sent to client
+                    del self.requests[req_id]
+
+                    logger.debug(
+                        "Request %s marked for PD recomputation (attempt %d/%d)",
+                        req_id,
+                        request.recompute_count,
+                        self.max_recompute_attempts,
+                    )
+                elif request is None:
+                    # Request already removed from dict (should not happen)
+                    logger.warning(
+                        "Request %s in recomputed_req_ids but not found in "
+                        "self.requests, skipping",
+                        req_id,
+                    )
+                # else: request.is_finished() is True, skip silently
+
         # NOTE(woosuk): As len(num_scheduled_tokens) can be up to 1K or more,
         # the below loop can be a performance bottleneck. We should do our best
         # to avoid expensive operations inside the loop.
@@ -1344,9 +1470,16 @@ class Scheduler(SchedulerInterface):
         stopped_preempted_reqs: set[Request] = set()
         for req_id, num_tokens_scheduled in num_scheduled_tokens.items():
             assert num_tokens_scheduled > 0
+
+            # Skip failed KV load requests
             if failed_kv_load_req_ids and req_id in failed_kv_load_req_ids:
-                # skip failed or rescheduled requests from KV load failure
                 continue
+
+            # Skip recomputed requests - they are already finished and will be
+            # resubmitted to prefill node
+            if req_id in scheduler_output.recomputed_req_ids:
+                continue
+
             request = self.requests.get(req_id)
             if request is None or request.is_finished():
                 # The request is already finished. This can happen if the
@@ -1488,6 +1621,10 @@ class Scheduler(SchedulerInterface):
         if stopped_preempted_reqs:
             # This is a rare case and unlikely to impact performance.
             self.waiting.remove_requests(stopped_preempted_reqs)
+
+        # Note: recomputed requests have already been removed from running queue
+        # in schedule() and from self.requests dict above. They should not appear
+        # in stopped_running_reqs or stopped_preempted_reqs.
 
         if failed_kv_load_req_ids and not self.recompute_kv_load_failures:
             requests = [self.requests[req_id] for req_id in failed_kv_load_req_ids]

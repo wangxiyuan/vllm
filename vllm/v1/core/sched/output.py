@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING
 
@@ -238,6 +238,12 @@ class SchedulerOutput:
     # preventing stale NaN/data from corrupting attention or SSM computation.
     new_block_ids_to_zero: list[int] | None = None
 
+    # PD Recompute: request IDs to be recomputed on prefill node
+    # Only used when kv_load_failure_policy='recompute_pd' in PD disaggregation
+    recomputed_req_ids: set[str] = field(default_factory=set)
+    """Request IDs that should be sent back to prefill node for recomputation.
+    Used in PD disaggregation scenarios when decode node runs out of KV cache."""
+
     @classmethod
     def make_empty(cls) -> "SchedulerOutput":
         return cls(
@@ -250,6 +256,7 @@ class SchedulerOutput:
             num_common_prefix_blocks=[],
             finished_req_ids=set(),
             free_encoder_mm_hashes=[],
+            recomputed_req_ids=set(),
         )
 
 

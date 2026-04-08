@@ -26,7 +26,14 @@ PauseMode = Literal["abort", "wait", "keep"]
 
 # These are possible values of RequestOutput.finish_reason,
 # so form part of the external API.
-FINISH_REASON_STRINGS = ("stop", "length", "abort", "error", "repetition")
+FINISH_REASON_STRINGS = (
+    "stop",
+    "length",
+    "abort",
+    "error",
+    "repetition",
+    "recompute_pd",
+)
 
 EEP_NOTIFICATION_CALL_ID = -1
 
@@ -40,7 +47,7 @@ class EEPNotificationType(enum.Enum):
 
 class FinishReason(enum.IntEnum):
     """
-    Reason a request finished - stop, length, abort, error, or repetition.
+    Reason a request finished - stop, length, abort, error, repetition, or recompute_pd.
 
     Int rather than Str for more compact serialization.
 
@@ -50,6 +57,8 @@ class FinishReason(enum.IntEnum):
     error - retryable request-level internal error (e.g., KV load failure).
             Invariant: always converted to 500 Internal Server Error.
     repetition - repetitive token pattern detected (hallucination)
+    recompute_pd - PD disaggregation: request sent back to prefill node for
+                   recomputation when decode node runs out of KV cache capacity
 
     """
 
@@ -58,6 +67,7 @@ class FinishReason(enum.IntEnum):
     ABORT = 2
     ERROR = 3
     REPETITION = 4
+    RECOMPUTE_PD = 5
 
     def __str__(self):
         return FINISH_REASON_STRINGS[self.value]

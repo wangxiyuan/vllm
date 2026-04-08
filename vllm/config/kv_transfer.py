@@ -67,10 +67,39 @@ class KVTransferConfig:
     enable_permute_local_kv: bool = False
     """Experiment feature flag to enable HND to NHD KV Transfer"""
 
-    kv_load_failure_policy: Literal["recompute", "fail"] = "fail"
-    """Policy for handling KV cache load failures.
-    'recompute': reschedule the request to recompute failed blocks
-    'fail': immediately fail the request with an error finish reason (default)"""
+    kv_load_failure_policy: Literal["recompute", "fail", "recompute_pd"] = "fail"
+    """Policy for handling KV cache load failures and capacity issues.
+    
+    Supported values:
+    
+    - 'fail' (default): Immediately fail the request with an error finish reason.
+      Suitable for production environments where request failures should be 
+      handled by the client.
+    
+    - 'recompute': Reschedule the request to recompute failed blocks when KV 
+      cache load failures occur (e.g., network errors, hardware faults). The 
+      request remains in the queue and is retried automatically.
+    
+    - 'recompute_pd': PD (Prefill-Decode) disaggregation mode. When the decode 
+      node runs out of KV cache capacity during scheduling, proactively send 
+      the request back to the prefill node for recomputation instead of 
+      preempting. This is useful for handling bursty traffic in PD separation 
+      scenarios.
+      
+      Requirements:
+      - kv_role must be 'kv_consumer' (decode node)
+      - KV connector must support bidirectional transfer
+      - Prefill node must be configured to accept recomputed requests
+    
+    Example usage for PD separation:
+    
+        kv_config = KVTransferConfig(
+            kv_connector="MooncakeConnector",
+            kv_role="kv_consumer",  # Decode node
+            kv_rank=1,
+            kv_load_failure_policy="recompute_pd",
+        )
+    """
 
     def compute_hash(self) -> str:
         """
