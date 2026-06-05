@@ -287,8 +287,12 @@ def fi_chunk_gated_delta_rule(
         return result.unsqueeze(0), None
 
 
+# --8<-- [start:chunk_gated_delta_rule]
 @CustomOp.register("chunk_gated_delta_rule")
 class ChunkGatedDeltaRule(CustomOp):
+    """Chunk Gated Delta Rule CustomOp."""
+
+    # --8<-- [end:chunk_gated_delta_rule]
     def __init__(self) -> None:
         super().__init__()
         vllm_config = get_current_vllm_config()
@@ -416,8 +420,14 @@ class ChunkGatedDeltaRule(CustomOp):
         return o, final_state
 
 
+# --8<-- [start:qwen_gated_delta_net_attention]
 @PluggableLayer.register("qwen_gated_delta_net_attention")
 class QwenGatedDeltaNetAttention(GatedDeltaNetAttention):
+    """
+    Qwen Gated Delta Net Attention layer
+    """
+
+    # --8<-- [end:qwen_gated_delta_net_attention]
     def get_state_shape(
         self,
     ) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
