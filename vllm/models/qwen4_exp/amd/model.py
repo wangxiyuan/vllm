@@ -74,6 +74,7 @@ from vllm.tokenizers.registry import cached_tokenizer_from_config
 from vllm.v1.attention.backends.registry import MambaAttentionBackendEnum
 from vllm.v1.kv_cache_interface import MambaSpec
 
+from ..common.kv_cache_grouping import Qwen4ExpKVCacheGrouping
 from .hyperconnection import GatedResidual, HyperConnectionConfig
 from .low_latency_gemm import enable_qwen4_exp_low_latency_gemm
 from .ple_layer import Qwen4ExpPLELayer
@@ -591,6 +592,7 @@ class Qwen4ExpForCausalLM(
     SupportsMRoPE,
     SupportsPP,
     Qwen4ExpMixtureOfExperts,
+    Qwen4ExpKVCacheGrouping,
     IsHybrid,
 ):
     packed_modules_mapping = {
@@ -820,6 +822,7 @@ class Qwen4ExpForConditionalGeneration(
     Qwen3_5ForConditionalGeneration,
     HasInnerState,
     Qwen4ExpMixtureOfExperts,
+    Qwen4ExpKVCacheGrouping,
 ):
     """Qwen3-VL vision tower backed by the Qwen4Exp language model."""
 
