@@ -1,0 +1,34 @@
+cases:
+  tp1: {structure: tp1, groups: 6}
+  tp4: {structure: tp1, groups: 6}
+  tp1-mtp: {structure: tp1-mtp, groups: 6}
+  tp4-mtp: {structure: tp1-mtp, groups: 6}
+structures:
+  tp1:
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{0-44:4}.linear_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{1-45:4}.linear_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{2-46:4}.linear_attn']
+  - kind: MambaSpec
+    layers: [language_model.model.layers.1.ple]
+  - kind: CircularBufferSpec
+    layers: ['language_model.model.layers.{3-47:4}.self_attn.indexer.raw_key_cache']
+  - kind: MLAAttentionSpec + FullAttentionSpec
+    layer_order: index_major
+    layers: ['language_model.model.layers.{3-47:4}.self_attn.indexer.compressed_key_cache', 'language_model.model.layers.{3-47:4}.self_attn.attn']
+  tp1-mtp:
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{0-44:4}.linear_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{1-45:4}.linear_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{2-46:4}.linear_attn']
+  - kind: MambaSpec
+    layers: [language_model.model.layers.1.ple]
+  - kind: CircularBufferSpec
+    layers: ['language_model.model.layers.{3-47:4}.self_attn.indexer.raw_key_cache', mtp.layers.48.self_attn.indexer.raw_key_cache]
+  - kind: MLAAttentionSpec + FullAttentionSpec
+    layer_order: index_major
+    layers: ['language_model.model.layers.{3-47:4}.self_attn.indexer.compressed_key_cache', 'language_model.model.layers.{3-47:4}.self_attn.attn', mtp.layers.48.self_attn.indexer.compressed_key_cache, mtp.layers.48.self_attn.attn]

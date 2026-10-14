@@ -22,9 +22,13 @@ PLANS = {name: entry for model in MODELS for name, entry in load_plan(model).ite
 PLANNED = [case for case in CASES if case.name in PLANS]
 
 # Speculators known to regroup the target layers, with the reason.
+DSV41_DSPARK = (
+    "3 sliding-window draft layers resize the default heuristic's groups "
+    "(vllm-project/vllm#58638)"
+)
 KNOWN_REGROUPING = {
-    "dsv41_flash-tp1-dspark": "3 sliding-window draft layers resize the default "
-    "heuristic's groups (vllm-project/vllm#58638)",
+    "dsv41_flash-tp1-dspark": DSV41_DSPARK,
+    "dsv41_flash-tp4-dspark": DSV41_DSPARK,
 }
 
 
