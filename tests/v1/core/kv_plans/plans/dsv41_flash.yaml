@@ -1,0 +1,82 @@
+cases:
+  tp1: {structure: tp1, groups: 7}
+  tp4: {structure: tp1, groups: 7}
+  tp1-indexer_mxfp4: {structure: tp1-indexer_mxfp4, groups: 9}
+  tp1-dspark: {structure: tp1-dspark, groups: 9}
+  tp4-dspark: {structure: tp1-dspark, groups: 9}
+structures:
+  tp1:
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{0-35:5}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{1-36:5}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{2-37:5}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{3-38:5}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{4-39:5}.attn.swa_cache']
+  - kind: MLAAttentionSpec
+    layer_order: index_major
+    layers: ['language_model.model.layers.{2-20:6}.attn', 'language_model.model.layers.{2-20:6}.attn.indexer.k_cache']
+  - kind: CircularBufferSpec
+    layers: ['language_model.model.layers.{2-14:6}.attn.compressor.state_cache']
+  tp1-indexer_mxfp4:
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{0-35:7}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{1-36:7}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{2-37:7}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{3-38:7}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{4-39:7}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{5-33:7}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{6-34:7}.attn.swa_cache']
+  - kind: MLAAttentionSpec
+    layer_order: index_major
+    layers: ['language_model.model.layers.{2-20:6}.attn', 'language_model.model.layers.{2-20:6}.attn.indexer.k_cache']
+  - kind: CircularBufferSpec
+    layers: ['language_model.model.layers.{2-14:6}.attn.compressor.state_cache']
+  tp1-dspark:
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    eagle: true
+    layers: ['language_model.model.layers.{0-36:6}.attn.swa_cache', model.layers.42.attn.swa_cache]
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{1-37:6}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{2-38:6}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{3-39:6}.attn.swa_cache']
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{4-34:6}.attn.swa_cache', model.layers.40.attn.swa_cache]
+  - kind: SlidingWindowMLASpec
+    sliding_window: 128
+    layers: ['language_model.model.layers.{5-35:6}.attn.swa_cache', model.layers.41.attn.swa_cache]
+  - kind: MLAAttentionSpec
+    layer_order: index_major
+    layers: ['language_model.model.layers.{2-20:6}.attn', 'language_model.model.layers.{2-20:6}.attn.indexer.k_cache']
+  - kind: CircularBufferSpec
+    layers: ['language_model.model.layers.{2,14}.attn.compressor.state_cache']
+  - kind: CircularBufferSpec
+    layers: [language_model.model.layers.8.attn.compressor.state_cache]

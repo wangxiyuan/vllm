@@ -117,6 +117,7 @@ from vllm.utils.multi_stream_utils import maybe_execute_in_parallel
 from vllm.utils.torch_utils import aux_stream, is_meta_module
 from vllm.v1.worker.ubatching import dbo_current_ubatch_id
 
+from ..common.kv_cache_grouping import KimiK3KVCacheGrouping
 from ..common.mm_preprocess import (
     KimiK3DummyInputsBuilder,
     KimiK3MultiModalProcessor,
@@ -1678,6 +1679,7 @@ class KimiK3ForConditionalGeneration(
     HasInnerState,
     IsHybrid,
     SupportsReplaySSM,
+    KimiK3KVCacheGrouping,
 ):
     """Kimi-K3 model with Kimi-K2.5 vision and KimiLinear text."""
 

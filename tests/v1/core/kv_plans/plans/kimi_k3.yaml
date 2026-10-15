@@ -1,0 +1,33 @@
+cases:
+  tp1: {structure: tp1, groups: 4}
+  tp4: {structure: tp1, groups: 4}
+  tp2-pp2:
+    structure: tp1
+    groups: 4
+    pp_stage_layers:
+    - [12, 12, 12, 11]
+    - [11, 11, 11, 13]
+  tp1-dspark: {structure: tp1-dspark, groups: 5}
+  tp4-dspark: {structure: tp1-dspark, groups: 5}
+structures:
+  tp1:
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{0-88:4}.self_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{1-89:4}.self_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{2-90:4}.self_attn']
+  - kind: MLAAttentionSpec
+    layers: ['language_model.model.layers.{3-91:4,92}.self_attn']
+  tp1-dspark:
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{0-88:4}.self_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{1-89:4}.self_attn']
+  - kind: MambaSpec
+    layers: ['language_model.model.layers.{2-90:4}.self_attn']
+  - kind: MLAAttentionSpec
+    layers: ['language_model.model.layers.{3-91:4,92}.self_attn']
+  - kind: SlidingWindowSpec
+    sliding_window: 2048
+    layers: ['model.layers.{93-97}.self_attn.attn']

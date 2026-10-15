@@ -187,6 +187,33 @@ def _make_csa_linear_specs(
     return specs
 
 
+def _make_qwen4_exp_specs(num_mtp_layers: int) -> dict[str, KVCacheSpec]:
+    """Specs in Qwen4Exp registration order: 3 GDN layers and 1 QSA layer per
+    4-layer period, the PLE state on layer 1 before that layer's GDN, and each
+    QSA layer's raw ring, compressed and main caches in that order. The platform
+    pads the Mamba pages to the main KV page. MTP layers are QSA layers."""
+    num_layers = 48
+    gdn = MambaSpec(
+        block_size=16,
+        shapes=((32,),),
+        dtypes=(torch.bfloat16,),
+        page_size_padded=MAIN_KV_PAGE_BYTES,
+    )
+    ple = replace(gdn, shapes=((24,),), tp_replicated=True)
+    tuple_specs = _make_csa_linear_specs(num_mamba=0, num_tuples=1)
+    specs: dict[str, KVCacheSpec] = {}
+    for i in range(num_layers + num_mtp_layers):
+        prefix = f"model.layers.{i}" if i < num_layers else f"mtp.layers.{i}"
+        if i == 1:
+            specs[f"{prefix}.ple"] = ple
+        if i < num_layers and i % 4 != 3:
+            specs[f"{prefix}.linear_attn"] = gdn
+            continue
+        for name in (_compressor_state_name(0), _compressed_name(0), _main_kv_name(0)):
+            specs[name.replace("model.layers.0", prefix)] = tuple_specs[name]
+    return specs
+
+
 def _shared_layout_config():
     config = _mock_vllm_config("BLNHC")
     config.scheduler_config.disable_hybrid_kv_cache_manager = False
@@ -218,6 +245,31 @@ class TestCSALinearGrouping:
             if isinstance(spec, MambaSpec):
                 out.append((group, spec))
         return out
+
+    @pytest.mark.parametrize("num_mtp_layers", [0, 1])
+    def test_qwen4_exp_grouping_matches_packed_default(self, num_mtp_layers):
+        """Qwen4Exp's model-owned grouping reproduces the generic packed groups
+        (membership, order and wrapper representation), so adopting it changes
+        no group."""
+        from vllm.models.qwen4_exp.common.kv_cache_grouping import (
+            Qwen4ExpKVCacheGrouping,
+        )
+
+        config = _shared_layout_config()
+        config.model_config.hf_text_config.full_attention_interval = 4
+        specs = _make_qwen4_exp_specs(num_mtp_layers)
+
+        groups = Qwen4ExpKVCacheGrouping.get_kv_cache_groups(config, dict(specs))
+
+        assert groups == get_kv_cache_groups(config, dict(specs))
+        assert [len(g.layer_names) for g in groups] == [
+            12,
+            12,
+            12,
+            1,
+            12 + num_mtp_layers,
+            2 * (12 + num_mtp_layers),
+        ]
 
     def test_replicated_state_gets_its_own_group(self):
         """The PLE state is TP-replicated and a different size, so it must not
